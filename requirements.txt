@@ -1,0 +1,7 @@
+pytelegrambotapi==4.10.0
+SQLAlchemy==2.0.8
+ossapi==3.1.5
+requests==2.28.2
+bs4==0.0.1
+beautifulsoup4==4.12.1
+yandex-music==2.0.1
