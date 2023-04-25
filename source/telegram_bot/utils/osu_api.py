@@ -25,7 +25,10 @@ def parse_link(url):
 def get_osu(data):
     total_response = {}
     for request in data:
-        response = client.search_beatmapsets(query=request, category=ossapi.BeatmapsetSearchCategory.ANY).beatmapsets[0]
+        levels = client.search_beatmapsets(query=request, category=ossapi.BeatmapsetSearchCategory.ANY).beatmapsets
+        if not levels:
+            continue
+        response = levels[0]
         name = f'{response.title} - {response.artist}'
         ratio = difflib.SequenceMatcher(None, request.lower(), name.strip().lower()).ratio()
         if ratio >= COEFF:
