@@ -9,12 +9,6 @@ bot = telebot.TeleBot(token=config.TOKEN)
 languages, lang_names = get_languages.get()
 
 
-@bot.message_handler(commands=['commit'])
-def commit(message):
-    sqlast_hope.session.commit()
-    bot.delete_message(message_id=message.id, chat_id=message.chat.id)
-
-
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.delete_message(message_id=message.id, chat_id=message.chat.id)
@@ -24,22 +18,22 @@ def start(message):
                                               callback_data=json.dumps({'handler': 'language', 'data': elem})))
     mid = bot.send_message(message.chat.id, text='Hello and welcome!<3. Please, choose preferred language to continue:',
                            reply_markup=markup).id
-    if not sqlast_hope.user(message.chat.id):
-        sqlast_hope.create_user(chat_id=message.chat.id)
+    if not sqlast_hope.user(message.chat.id)[0]:
+        sqlast_hope.create_user(chat_id=message.chat.id, message_id=mid)
     else:
         try:
-            user = sqlast_hope.user(message.chat.id)
+            user, session = sqlast_hope.user(message.chat.id)
             bot.delete_message(chat_id=message.chat.id, message_id=user.message_id)
             bot.delete_message(chat_id=message.chat.id, message_id=user.player_id)
+            session.close()
         except telebot.apihelper.ApiTelegramException:
             pass
-    sqlast_hope.user(message.chat.id).message_id = mid
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'language')
 def language_handler(call):
     language = json.loads(call.data)['data']
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     user.language = language
     markup = types.InlineKeyboardMarkup()
     b_home = types.InlineKeyboardButton(languages[language].get('home', TE),
@@ -52,13 +46,15 @@ def language_handler(call):
         bot.edit_message_caption(caption=caption, message_id=user.player_id, chat_id=user.chat_id, reply_markup=mk)
     except telebot.apihelper.ApiTelegramException:
         pass
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'home')
 def main_menu(call):
     bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup.row(types.InlineKeyboardButton(languages[user.language].get('music', TE),
                                           callback_data='{"handler": "music"}'))
     markup.row(types.InlineKeyboardButton(languages[user.language].get('osu', TE),
@@ -68,11 +64,13 @@ def main_menu(call):
     bot.edit_message_text(chat_id=user.chat_id, message_id=call.message.id,
                           text=languages[user.language].get('home_text', TE), reply_markup=markup)
     user.script = 'home'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'settings')
 def settings(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('language', TE),
                                           callback_data='{"handler": "set_lang"}'))
@@ -83,11 +81,13 @@ def settings(call):
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
                           text=languages[user.language].get('settings_text', TE), reply_markup=markup)
     user.script = 'settings'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'osu')
 def osu_main(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('osu_parse', TE),
                                           callback_data='{"handler": "osu_parser"}'))
@@ -96,12 +96,14 @@ def osu_main(call):
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
                           text=languages[user.language].get('osu_text', TE), reply_markup=markup)
     user.script = 'osu'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'osu_parser')
 def osu_parser_main(call):
     bot.clear_step_handler_by_chat_id(chat_id=call.message.chat.id)
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('osu_parse_link', TE),
                                           callback_data='{"handler": "osu_parse_link"}'))
@@ -112,11 +114,12 @@ def osu_parser_main(call):
                                           callback_data='{"handler": "home"}'))
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
                           text=languages[user.language].get('osu_parser_text', TE), reply_markup=markup)
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'osu_parse_link')
 def osu_to_link(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('back', TE),
                                           callback_data='{"handler": "osu_parser"}'),
@@ -125,11 +128,12 @@ def osu_to_link(call):
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup,
                           text=languages[user.language].get('osu_link_text', TE))
     bot.register_next_step_handler(callback=osu_link_searcher, message=call.message)
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'osu_parse_pl')
 def osu_playlist_view(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     u = False
     if user.liked != '[]':
@@ -146,11 +150,12 @@ def osu_playlist_view(call):
                                           callback_data='{"handler": "home"}'))
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup,
                           text=languages[user.language].get('osu_pl_text' if u else 'empty_playlists', TE))
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'osu_start')
 def osu_call_searcher(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     playlist = json.loads(call.data)['data']
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
                           text=languages[user.language].get('osu_wait', TE))
@@ -175,11 +180,12 @@ def osu_call_searcher(call):
                                           callback_data='{"handler": "home"}'))
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup,
                           text=languages[user.language].get('search_response_text', TE))
+    session.close()
 
 
 def osu_link_searcher(message):
     bot.delete_message(chat_id=message.chat.id, message_id=message.id)
-    user = sqlast_hope.user(message.chat.id)
+    user, session = sqlast_hope.user(message.chat.id)
     bot.edit_message_text(chat_id=message.chat.id, message_id=user.message_id,
                           text=languages[user.language].get('osu_wait', TE))
     results = osu_api.get_res(url=message.text)
@@ -201,11 +207,12 @@ def osu_link_searcher(message):
                                           callback_data='{"handler": "home"}'))
     bot.edit_message_text(chat_id=message.chat.id, message_id=user.message_id, reply_markup=markup,
                           text=languages[user.language].get('search_response_text', TE))
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'set_lang')
 def set_language(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     for elem in languages.keys():
         markup.row(types.InlineKeyboardButton(lang_names[elem],
@@ -217,12 +224,14 @@ def set_language(call):
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
                           text=languages[user.language].get('set_lang_text', TE), reply_markup=markup)
     user.script = 'lang'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'music')
 def music(call):
     bot.clear_step_handler_by_chat_id(call.message.chat.id)
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('search', TE),
                                           callback_data='{"handler": "search"}'))
@@ -235,12 +244,14 @@ def music(call):
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id,
                           text=languages[user.language].get('music_main_text', TE), reply_markup=markup)
     user.script = 'music'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'playlists')
 def playlists_view(call):
     bot.clear_step_handler_by_chat_id(call.message.chat.id)
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     u = False
     if '--lsr' in json.loads(user.playlists):
@@ -260,11 +271,13 @@ def playlists_view(call):
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup,
                           text=languages[user.language].get('playlists_text' if u else 'empty_playlists', TE))
     user.script = 'playlists'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'playlist')
 def playlist_view(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     pl_id = json.loads(call.data)['data']
     buttons = []
@@ -295,11 +308,13 @@ def playlist_view(call):
                           text=(languages[user.language].get("playlist_text", TE) + text) if u else
                           languages[user.language].get("empty_playlist", TE))
     user.script = f'playlist_view::{pl_id}::s'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'liked')
 def liked_view(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     tracks = json.loads(user.liked)
     if tracks:
@@ -319,11 +334,13 @@ def liked_view(call):
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup,
                           text=languages[user.language].get('liked_text' if u else 'empty_liked', TE))
     user.script = 'liked'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'search')
 def search(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('back', TE),
                                           callback_data='{"handler": "music"}'),
@@ -333,6 +350,8 @@ def search(call):
                           text=languages[user.language].get('search_text', TE))
     bot.register_next_step_handler(message=call.message, callback=handle_search)
     user.script = 'search'
+    session.commit()
+    session.close()
 
 
 def handle_search(message):
@@ -340,7 +359,7 @@ def handle_search(message):
         bot.delete_message(chat_id=message.chat.id, message_id=message.id)
     except telebot.apihelper.ApiTelegramException:
         pass
-    user = sqlast_hope.user(message.chat.id)
+    user, session = sqlast_hope.user(message.chat.id)
     markup = types.InlineKeyboardMarkup()
     response = music_api.search(message.text)
     u = False
@@ -372,6 +391,8 @@ def handle_search(message):
                                          reply_markup=mk)
             except telebot.apihelper.ApiTelegramException:
                 pass
+    session.commit()
+    session.close()
 
 
 def generate_player(user):
@@ -407,7 +428,7 @@ def play(call):
     data = json.loads(call.data)
     track_id, playlist = data['track'], data['playlist']
     link = music_api.get_link(track_id)
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     user.track_id = track_id
     user.playlist = playlist
     try:
@@ -420,11 +441,13 @@ def play(call):
                              caption=caption).id
         user.player_id = pid
         bot.answer_callback_query(callback_query_id=call.id, text=languages[user.language].get('downloaded', TE))
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] in ['next', 'prew'])
 def switch_track(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     if not user.playlist:
         bot.answer_callback_query(callback_query_id=call.id, text=languages[user.language].get('raise_end', TE))
         return
@@ -469,6 +492,7 @@ def switch_track(call):
                                      f"{languages[user.language].get('from_pl', TE)}{pl_name}\n{index}").id
         user.player_id = pid
         user.track_id = new_track
+        session.commit()
     if user.script == 'track_text':
         text = music_api.get_text(user.track_id)
         if not text:
@@ -481,6 +505,7 @@ def switch_track(call):
         bot.edit_message_text(chat_id=user.chat_id, message_id=user.message_id,
                               text=f'{languages[user.language].get("song_text", TE)}'
                                    f' {music_api.get_metadata(user.track_id)}\n{text}', reply_markup=markup)
+    session.close()
 
 
 @bot.message_handler(content_types=['text', 'audio', 'photo', 'video', 'media', 'file', 'voice', 'video_note'])
@@ -488,8 +513,9 @@ def deleter(message):
     bot.delete_message(message.chat.id, message.id)
     if not message.text.startswith("notify.prj/"):
         return
-    user = sqlast_hope.user(message.chat.id)
+    user, session = sqlast_hope.user(message.chat.id)
     user.script = 'api'
+    session.commit()
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('home', TE),
                                           callback_data='{"handler": "home"}'))
@@ -533,6 +559,7 @@ def deleter(message):
         user.playlist_names = json.dumps(pl_names)
         bot.edit_message_text(chat_id=user.chat_id, message_id=user.message_id, reply_markup=markup,
                               text=languages[user.language].get('share_pl_added', TE))
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'del')
@@ -542,7 +569,7 @@ def del_player(call):
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'like')
 def like_track(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     track_id = json.loads(call.data)['data']
     liked_tracks = json.loads(user.liked)
     if track_id in liked_tracks:
@@ -554,6 +581,7 @@ def like_track(call):
             return
         liked_tracks.append(track_id)
         user.liked = json.dumps(liked_tracks)
+    session.commit()
     try:
         mk, caption = generate_player(user)
         bot.edit_message_caption(message_id=user.player_id, chat_id=user.chat_id,
@@ -619,12 +647,13 @@ def like_track(call):
                                               callback_data='{"handler": "home"}'))
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=user.message_id, reply_markup=markup,
                               text=languages[user.language].get('liked_text' if u else 'empty_liked', TE))
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'new_pl')
 def create_playlist(call):
     bot.clear_step_handler_by_chat_id(call.message.chat.id)
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     if len(json.loads(user.playlist_names).keys()) >= 25:
         bot.answer_callback_query(callback_query_id=call.id, text=languages[user.language].get("max_pl"))
         return
@@ -636,11 +665,12 @@ def create_playlist(call):
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.id, reply_markup=markup,
                           text=languages[user.language].get('new_pl_text', TE))
     bot.register_next_step_handler(call.message, pl_name_handler)
+    session.close()
 
 
 def pl_name_handler(message):
     bot.delete_message(chat_id=message.chat.id, message_id=message.id)
-    user = sqlast_hope.user(message.chat.id)
+    user, session = sqlast_hope.user(message.chat.id)
     playlists = json.loads(user.playlists)
     pl_names = json.loads(user.playlist_names)
     markup = types.InlineKeyboardMarkup()
@@ -662,13 +692,15 @@ def pl_name_handler(message):
     pl_names[pl_id] = name
     user.playlists = json.dumps(playlists)
     user.playlist_names = json.dumps(pl_names)
+    session.commit()
     bot.edit_message_text(chat_id=message.chat.id, message_id=user.message_id, reply_markup=markup,
                           text=languages[user.language].get('created_pl_text', TE))
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'to_pl')
 def add_to_playlist_view(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     track_id = user.track_id
     markup = types.InlineKeyboardMarkup()
     playlists = json.loads(user.playlists)
@@ -691,13 +723,15 @@ def add_to_playlist_view(call):
     except telebot.apihelper.ApiTelegramException:
         pass
     user.script = 'adding'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'add')
 def add_to_pl(call):
     data = json.loads(call.data)
     track_id, playlist = data['track_id'], data['pl']
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('back', TE),
                                           callback_data='{"handler": "playlists"}'),
@@ -709,6 +743,7 @@ def add_to_pl(call):
         return
     playlists[playlist].append(track_id)
     user.playlists = json.dumps(playlists)
+    session.commit()
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=user.message_id,
                           text=languages[user.language].get('suc_add', TE), reply_markup=markup)
     if user.playlist == playlist:
@@ -717,12 +752,13 @@ def add_to_pl(call):
             bot.edit_message_caption(caption=caption, message_id=user.player_id, chat_id=user.chat_id, reply_markup=mk)
         except telebot.apihelper.ApiTelegramException:
             pass
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'edit_pl')
 def edit_pl_main(call):
     pl_name = json.loads(call.data)['data']
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     rem_b = types.InlineKeyboardButton(languages[user.language].get('rem_pl', TE),
                                        callback_data=json.dumps({"handler": "conf",
@@ -741,6 +777,8 @@ def edit_pl_main(call):
     bot.edit_message_text(chat_id=user.chat_id, message_id=call.message.id,
                           text=languages[user.language].get('pl_edit_text', TE), reply_markup=markup)
     user.script = 'pl_edit'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'conf')
@@ -760,7 +798,7 @@ def conf_action(call):
 def rem_track_from_pl(call):
     data = json.loads(call.data)
     pl, track = data['playlist'], data['track']
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     all_playlists = json.loads(user.playlists)
     old_pl = all_playlists[pl]
     old_mk = call.message.reply_markup
@@ -769,18 +807,20 @@ def rem_track_from_pl(call):
     old_pl.remove(track)
     all_playlists[pl] = old_pl
     user.playlists = json.dumps(all_playlists)
+    session.commit()
     if user.playlist == pl and user.track_id == track:
         try:
             mk, caption = generate_player(user)
             bot.edit_message_caption(caption=caption, message_id=user.player_id, chat_id=user.chat_id, reply_markup=mk)
         except telebot.apihelper.ApiTelegramException:
             pass
+    session.close()
 
 
 @bot.callback_query_handler(lambda call: json.loads(call.data)['handler'] == 'rem_pl')
 def del_playlist(call):
     pl_name = json.loads(call.data)['data']
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     new = json.loads(user.playlists)
     new.pop(pl_name)
     names = json.loads(user.playlist_names)
@@ -794,6 +834,7 @@ def del_playlist(call):
         except telebot.apihelper.ApiTelegramException:
             pass
     user.playlist = ''
+    session.commit()
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('back', TE),
                                           callback_data='{"handler": "playlists"}'),
@@ -801,11 +842,12 @@ def del_playlist(call):
                                           callback_data='{"handler": "home"}'))
     bot.edit_message_text(chat_id=user.chat_id, message_id=user.message_id,
                           text=languages[user.language].get('suc_rem', TE), reply_markup=markup)
+    session.close()
 
 
 @bot.callback_query_handler(lambda call: json.loads(call.data)['handler'] == 'rename_pl')
 def rename_playlist(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     playlist = json.loads(call.data)['data']
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('back', TE),
@@ -815,11 +857,12 @@ def rename_playlist(call):
     bot.edit_message_text(chat_id=user.chat_id, message_id=user.message_id,
                           text=languages[user.language].get('new_pl_name', TE), reply_markup=markup)
     bot.register_next_step_handler(call.message, handle_new_pl_name, playlist)
+    session.close()
 
 
 def handle_new_pl_name(message, playlist):
     bot.delete_message(chat_id=message.chat.id, message_id=message.id)
-    user = sqlast_hope.user(message.chat.id)
+    user, session = sqlast_hope.user(message.chat.id)
     pl_names = json.loads(user.playlist_names)
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('back', TE),
@@ -837,6 +880,7 @@ def handle_new_pl_name(message, playlist):
         return
     pl_names[playlist] = name
     user.playlist_names = json.dumps(pl_names)
+    session.commit()
     bot.edit_message_text(chat_id=message.chat.id, message_id=user.message_id, reply_markup=markup,
                           text=languages[user.language].get('changed_name', TE))
     if user.playlist == playlist:
@@ -847,23 +891,25 @@ def handle_new_pl_name(message, playlist):
             bot.edit_message_caption(caption=caption, message_id=user.player_id, chat_id=user.chat_id, reply_markup=mk)
         except telebot.apihelper.ApiTelegramException:
             pass
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'del_ac')
 def delete_account(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     try:
         bot.delete_message(chat_id=user.chat_id, message_id=user.player_id)
     except telebot.apihelper.ApiTelegramException:
         pass
     lang = languages[user.language]
+    session.close()
     sqlast_hope.delete_user(user.chat_id)
     bot.edit_message_text(text=lang.get('del_suc', TE), chat_id=user.chat_id, message_id=user.message_id)
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'text')
 def get_text(call):
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     text = music_api.get_text(user.track_id)
     if not text:
         bot.answer_callback_query(callback_query_id=call.id, text=languages[user.language].get('fail_text', TE))
@@ -876,25 +922,29 @@ def get_text(call):
                           text=f'{languages[user.language].get("song_text", TE)}'
                                f' {music_api.get_metadata(user.track_id)}\n{text}', reply_markup=markup)
     user.script = 'track_text'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'share')
 def share_track(call):
     bot.answer_callback_query(callback_query_id=call.id, text="")
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('home', TE),
                                           callback_data='{"handler": "home"}'))
     bot.edit_message_text(chat_id=user.chat_id, message_id=user.message_id, reply_markup=markup, parse_mode='markdown',
                           text=f'{languages[user.language].get("share_text", TE)}\n`notify.prj/share/{user.track_id}`')
     user.script = 'share_track'
+    session.commit()
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'share_pl')
 def share_playlist(call):
     playlist_id = json.loads(call.data)['data']
     bot.answer_callback_query(callback_query_id=call.id, text="")
-    user = sqlast_hope.user(call.message.chat.id)
+    user, session = sqlast_hope.user(call.message.chat.id)
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('home', TE),
                                           callback_data='{"handler": "home"}'))
@@ -902,6 +952,8 @@ def share_playlist(call):
                           text=f'{languages[user.language].get("share_text", TE)}\n`notify.prj/playlist/'
                                f'{user.chat_id}/{playlist_id}`')
     user.script = 'share_track'
+    session.commit()
+    session.close()
 
 
 if __name__ == '__main__':
@@ -911,4 +963,3 @@ if __name__ == '__main__':
         bot.infinity_polling()
     except Exception as e:
         print(f'crushed: {e}')
-        sqlast_hope.session.commit()

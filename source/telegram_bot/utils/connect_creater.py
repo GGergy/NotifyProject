@@ -10,4 +10,4 @@ def connect(name):
     engine = sqlalchemy.create_engine(connection, echo=False)
     __session_generator = orm.sessionmaker(bind=engine)
     SqlAlchemyBase.metadata.create_all(engine)
-    return __session_generator()
+    return __session_generator
