@@ -21,13 +21,15 @@ def start(message):
     if not sqlast_hope.user(message.chat.id)[0]:
         sqlast_hope.create_user(chat_id=message.chat.id, message_id=mid)
     else:
+        user, session = sqlast_hope.user(message.chat.id)
         try:
-            user, session = sqlast_hope.user(message.chat.id)
             bot.delete_message(chat_id=message.chat.id, message_id=user.message_id)
             bot.delete_message(chat_id=message.chat.id, message_id=user.player_id)
-            session.close()
         except telebot.apihelper.ApiTelegramException:
             pass
+        user.message_id = mid
+        session.commit()
+        session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'language')
