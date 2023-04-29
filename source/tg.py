@@ -37,6 +37,7 @@ def language_handler(call):
     language = json.loads(call.data)['data']
     user, session = sqlast_hope.user(call.message.chat.id)
     user.language = language
+    session.commit()
     markup = types.InlineKeyboardMarkup()
     b_home = types.InlineKeyboardButton(languages[language].get('home', TE),
                                         callback_data='{"handler": "home"}')
@@ -48,7 +49,6 @@ def language_handler(call):
         bot.edit_message_caption(caption=caption, message_id=user.player_id, chat_id=user.chat_id, reply_markup=mk)
     except telebot.apihelper.ApiTelegramException:
         pass
-    session.commit()
     session.close()
 
 
@@ -433,6 +433,7 @@ def play(call):
     user, session = sqlast_hope.user(call.message.chat.id)
     user.track_id = track_id
     user.playlist = playlist
+    session.commit()
     try:
         bot.delete_message(chat_id=call.message.chat.id, message_id=user.player_id)
     except telebot.apihelper.ApiTelegramException:
@@ -443,7 +444,6 @@ def play(call):
                              caption=caption).id
         user.player_id = pid
         bot.answer_callback_query(callback_query_id=call.id, text=languages[user.language].get('downloaded', TE))
-    session.commit()
     session.close()
 
 
@@ -516,8 +516,6 @@ def deleter(message):
     if not message.text.startswith("notify.prj/"):
         return
     user, session = sqlast_hope.user(message.chat.id)
-    user.script = 'api'
-    session.commit()
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(languages[user.language].get('home', TE),
                                           callback_data='{"handler": "home"}'))
@@ -561,6 +559,8 @@ def deleter(message):
         user.playlist_names = json.dumps(pl_names)
         bot.edit_message_text(chat_id=user.chat_id, message_id=user.message_id, reply_markup=markup,
                               text=languages[user.language].get('share_pl_added', TE))
+    user.script = 'api'
+    session.commit()
     session.close()
 
 
@@ -786,7 +786,8 @@ def edit_pl_main(call):
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'conf')
 def conf_action(call):
     callback = json.loads(call.data)['data']
-    lang = languages[sqlast_hope.user(call.message.chat.id).language]
+    user, session = sqlast_hope.user(call.message.chat.id)
+    lang = languages[user.language]
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton(lang.get('conf_action', TE),
                                           callback_data=json.dumps(callback)))
@@ -794,6 +795,7 @@ def conf_action(call):
                                           callback_data='{"handler": "home"}'))
     bot.edit_message_text(message_id=call.message.id, chat_id=call.message.chat.id, text=lang.get('conf_text', TE),
                           reply_markup=markup)
+    session.close()
 
 
 @bot.callback_query_handler(func=lambda call: json.loads(call.data)['handler'] == 'rem_track')
