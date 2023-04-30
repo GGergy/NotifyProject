@@ -69,7 +69,7 @@ def get_text(track_id):
         response = requests.get(url).content
         soup = BeautifulSoup(response, 'html.parser')
         texts = soup.find_all(lambda tag: tag.get('class') == ['Lyrics__Container-sc-1ynbvzw-5', 'Dzxov'])
-        data = [item.get_text() for txt in texts for item in txt if item.get_text()]
-        return '\n'.join(data)[:4000]
+        data = [item.get_text(separator='\n') for txt in texts for item in txt if item.get_text()]
+        return '\n'.join(data)[:5000]
     except:
         return False

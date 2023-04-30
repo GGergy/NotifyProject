@@ -533,6 +533,7 @@ def deleter(message):
             return
         liked_tracks.append(track_id)
         user.liked = json.dumps(liked_tracks)
+        session.commit()
         try:
             mk, caption = generate_player(user)
             bot.edit_message_caption(chat_id=user.chat_id, message_id=user.player_id, caption=caption, reply_markup=mk)
@@ -547,16 +548,22 @@ def deleter(message):
                                   text=languages[user.language].get("max_pl"))
             return
         user_id, playlist_id = message.text.split('/')[2:]
-        share_user = sqlast_hope.user(int(user_id))
-        data = json.loads(share_user.playlists)[playlist_id] if\
+        share_user, share_session = sqlast_hope.user(int(user_id))
+        data = json.loads(share_user.playlists).get(playlist_id, []) if\
             playlist_id != '--liked' else json.loads(share_user.liked)
+        if not data:
+            bot.edit_message_text(chat_id=user.chat_id, message_id=user.message_id, reply_markup=markup,
+                                  text=languages[user.language].get('empty_share', TE))
+            return
         old = json.loads(user.playlists)
-        pl_id = str(len(old.keys()) + 1)
+        pl_id = str(old.keys()[-1] + 1) if old.keys() else '1'
         old[pl_id] = data
         pl_names = json.loads(user.playlist_names)
         pl_names[pl_id] = "playlist " + bot.get_chat_member(int(user_id), int(user_id)).user.first_name
         user.playlists = json.dumps(old)
         user.playlist_names = json.dumps(pl_names)
+        session.commit()
+        share_session.close()
         bot.edit_message_text(chat_id=user.chat_id, message_id=user.message_id, reply_markup=markup,
                               text=languages[user.language].get('share_pl_added', TE))
     user.script = 'api'
@@ -689,7 +696,7 @@ def pl_name_handler(message):
         except telebot.apihelper.ApiTelegramException:
             pass
         return
-    pl_id = str(len(pl_names.values()) + 1)
+    pl_id = str(playlists.keys()[-1] + 1) if playlists.keys() else '1'
     playlists[pl_id] = []
     pl_names[pl_id] = name
     user.playlists = json.dumps(playlists)
