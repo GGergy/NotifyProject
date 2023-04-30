@@ -71,6 +71,7 @@
     "share_already": "Already added to your favourites",
     "share_pl_added": "Playlist added to your media library",
     "share_pl": "Share\uD83D\uDD17",
-    "max_pl": "You're already have maximum of playlists"
+    "max_pl": "You're already have maximum of playlists",
+    "empty_share": "Playlist is empty or removed"
   }
 }

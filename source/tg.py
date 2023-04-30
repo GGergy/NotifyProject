@@ -444,6 +444,7 @@ def play(call):
                              caption=caption).id
         user.player_id = pid
         bot.answer_callback_query(callback_query_id=call.id, text=languages[user.language].get('downloaded', TE))
+        session.commit()
     session.close()
 
 
@@ -556,7 +557,7 @@ def deleter(message):
                                   text=languages[user.language].get('empty_share', TE))
             return
         old = json.loads(user.playlists)
-        pl_id = str(old.keys()[-1] + 1) if old.keys() else '1'
+        pl_id = str(int(list(old.keys())[-1]) + 1) if len(old.keys()) > 1 else '1'
         old[pl_id] = data
         pl_names = json.loads(user.playlist_names)
         pl_names[pl_id] = "playlist " + bot.get_chat_member(int(user_id), int(user_id)).user.first_name
@@ -696,7 +697,7 @@ def pl_name_handler(message):
         except telebot.apihelper.ApiTelegramException:
             pass
         return
-    pl_id = str(playlists.keys()[-1] + 1) if playlists.keys() else '1'
+    pl_id = str(int(list(playlists.keys())[-1]) + 1) if len(playlists.keys()) > 1 else '1'
     playlists[pl_id] = []
     pl_names[pl_id] = name
     user.playlists = json.dumps(playlists)
