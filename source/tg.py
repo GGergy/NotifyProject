@@ -637,8 +637,6 @@ def like_track(call):
             pass
     elif user.script == 'liked':
         markup = types.InlineKeyboardMarkup()
-        markup.row(types.InlineKeyboardButton(languages[user.language].get('share_pl', TE),
-                                              callback_data='{"handler": "share_pl", "data": "--liked"}'))
         tracks = json.loads(user.liked)
         if tracks:
             markup.row(types.InlineKeyboardButton(languages[user.language].get('share_pl', TE),
